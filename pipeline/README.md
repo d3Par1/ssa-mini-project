@@ -2,9 +2,10 @@
 
 **Студент:** Степаненко Назар Юрійович
 **Група:** ТВ-43
-**Курс:** Архітектура системного програмного забезпечення
-**Дата:** 2026-05-24
-**GitHub:** [@d3Par1](https://github.com/d3Par1)
+**Курс:** Архітектура системного програмного забезпечення (АСПЗ)
+**Навчальний рік:** 2025/26, семестр 2
+**Дата:** 2026-05-25
+**GitHub:** [@d3Par1](https://github.com/d3Par1) — [ssa-mini-project](https://github.com/d3Par1/ssa-mini-project)
 
 ## Тема
 
@@ -141,7 +142,17 @@ $ ./pipeline "ls /usr/bin | wc -l"
 Перший процес (`ls`) переспрямовує stdout у пайп, другий (`wc -l`) читає
 з нього і виводить кількість рядків. Класичний приклад з методички.
 
-![Демо 1](screenshots/demo_1.png)
+**Фактичний вивід (WSL Ubuntu 24.04, gcc 13.3):**
+
+```text
+$ ./pipeline "ls /usr/bin | wc -l"
+1153
+[pid=39187] ls -> exit=0
+[pid=39188] wc -> exit=0
+```
+
+`ls /usr/bin` знаходить 1153 файли. Звіт у stderr (`[pid=...]`) показує,
+що обидва процеси завершилися з кодом 0.
 
 ### Демо 2 — 3-pipe з фільтром (саме приклад з методички)
 
@@ -152,7 +163,18 @@ $ ./pipeline "cat demo/input.txt | grep -i pipeline | wc -l"
 Три процеси, два пайпи. `grep` стає одночасно і читачем, і писачем —
 саме той випадок, коли важливе правильне закриття дескрипторів.
 
-![Демо 2](screenshots/demo_2.png)
+**Фактичний вивід:**
+
+```text
+$ ./pipeline "cat demo/input.txt | grep -i pipeline | wc -l"
+3
+[pid=39192] cat -> exit=0
+[pid=39193] grep -> exit=0
+[pid=39194] wc -> exit=0
+```
+
+У `demo/input.txt` слово «pipeline» зустрічається тричі (рядки 1, 2, 5).
+`grep -i` пропускає їх до `wc -l`, який рахує — отримуємо `3`.
 
 ### Демо 3 — 4-pipe багатоступеневий
 
@@ -166,7 +188,25 @@ $ ./pipeline "ps aux | grep root | sort -k1 | head -5"
 закриває свій stdin раніше за всіх, спричиняючи `SIGPIPE` у попередніх
 ланок (якщо вони ще пишуть).
 
-![Демо 3](screenshots/demo_3.png)
+**Фактичний вивід:**
+
+```text
+$ ./pipeline "ps aux | grep root | sort -k1 | head -5"
+nazar      39197  0.0  0.0   2680  1344 pts/4    S+   22:00   0:00 ./pipeline ps aux | grep root | sort -k1 | head -5
+nazar      39199  0.0  0.0   4088  1728 pts/4    S+   22:00   0:00 grep root
+root           1  0.0  0.0  22236 11904 ?        Ss   May20   0:13 /sbin/init
+root           2  0.0  0.0   3072  1728 ?        Sl   May20   0:00 /init
+root           7  0.0  0.0   3120  1728 ?        Sl   May20   0:01 plan9 --control-socket 7 --log-level 4
+[pid=39198] ps -> exit=0
+[pid=39199] grep -> exit=0
+[pid=39200] sort -> exit=0
+[pid=39201] head -> exit=0
+```
+
+Хоча `grep` шукає «root», у виводі є й рядки з користувачем `nazar` —
+це бо власні процеси `pipeline` і `grep root` теж потрапляють у `ps aux`
+(командний рядок містить слово «root»). Класичний приклад «grep ловить
+сам себе».
 
 ### Демо 4 — Помилка у початковій команді
 
@@ -178,7 +218,20 @@ $ ./pipeline "cat nonexistent_file.xyz | wc -l"
 `wc -l` отримує порожній stdin (EOF одразу) і виводить `0`. Pipeline
 рапортує обидва exit-коди у stderr, повертає 0 (код останньої команди).
 
-![Демо 4](screenshots/demo_4.png)
+**Фактичний вивід:**
+
+```text
+$ ./pipeline "cat nonexistent_file.xyz | wc -l"
+cat: nonexistent_file.xyz: No such file or directory
+0
+[pid=39205] cat -> exit=1
+[pid=39206] wc -> exit=0
+```
+
+`cat` пише свою помилку у `stderr` (відразу на термінал), у `stdout` (пайп)
+нічого не пише, потім виходить з кодом 1. `wc -l` бачить EOF одразу,
+виводить `0`. Pipeline звітує обидва коди — це **не** є помилкою самого
+pipeline'у, бо кожен процес запустився коректно.
 
 ### Демо 5 — Помилка `execvp` у середині конвеєра
 
@@ -190,7 +243,22 @@ $ ./pipeline "ls | nosuchcommand_xyz | wc -l"
 `ls` отримує `SIGPIPE` (бо середній процес закрив read-end) і завершується.
 Pipeline видає три повідомлення з кодами/сигналами кожного процесу.
 
-![Демо 5](screenshots/demo_5.png)
+**Фактичний вивід:**
+
+```text
+$ ./pipeline "ls | nosuchcommand_xyz | wc -l"
+[pid=39210] ls -> exit=0
+pipeline: nosuchcommand_xyz: No such file or directory
+0
+[pid=39211] nosuchcommand_xyz -> exit=127
+[pid=39212] wc -> exit=0
+```
+
+Рядок `pipeline: nosuchcommand_xyz: No such file or directory` — наш
+власний повідомлень з `pipeline.c:164-165`. Код 127 — це POSIX-конвенція
+для «команда не знайдена». `ls` завершився нормально, бо вивід `ls` був
+маленький і повністю помістився у kernel-pipe-буфер до того як середній
+процес закрив свій read-end (інакше `ls` упав би з SIGPIPE).
 
 ### Демо 6 — Перетворення тексту
 
@@ -202,7 +270,20 @@ $ ./pipeline "echo hello world | tr a-z A-Z | rev"
 використовуємо `/usr/bin/echo` (зовнішню утиліту GNU coreutils), бо
 `execvp` шукає файл у `$PATH`.
 
-![Демо 6](screenshots/demo_6.png)
+**Фактичний вивід:**
+
+```text
+$ ./pipeline "echo hello world | tr a-z A-Z | rev"
+DLROW OLLEH
+[pid=39216] echo -> exit=0
+[pid=39217] tr -> exit=0
+[pid=39218] rev -> exit=0
+```
+
+Послідовність: `echo hello world` → `hello world` → `tr a-z A-Z` →
+`HELLO WORLD` → `rev` → `DLROW OLLEH`. Усі три процеси виконуються
+паралельно (а не послідовно!) — `tr` починає писати у `rev` ще до того,
+як `echo` повністю завершився, бо ядро буферизує pipe.
 
 ### Демо 7 — Одна команда без `|`
 
@@ -214,7 +295,22 @@ $ ./pipeline "ls -la demo"
 просто `fork + execvp + waitpid`. Підтверджує, що алгоритм працює для
 тривіального випадку та не падає на `pipes[-1]`.
 
-![Демо 7](screenshots/demo_7.png)
+**Фактичний вивід:**
+
+```text
+$ ./pipeline "ls -la demo"
+total 8
+drwxrwxrwx 1 nazar nazar 4096 May 24 22:00 .
+drwxrwxrwx 1 nazar nazar 4096 May 24 21:59 ..
+-rwxrwxrwx 1 nazar nazar  282 May 24 22:00 input.txt
+-rwxrwxrwx 1 nazar nazar  215 May 24 22:00 output_1.txt
+-rwxrwxrwx 1 nazar nazar 2043 May 24 14:06 run_demos.sh
+[pid=39222] ls -> exit=0
+```
+
+Один процес, жодного pipe-fd. Логіка `if (i > 0)` та `if (i < ncmd - 1)`
+у `pipeline.c:147,153` коректно опускає обидва `dup2`. `close_all_pipes`
+викликається з `npipes=0` — нічого не робить.
 
 ## Порівняння з `system(3)`
 

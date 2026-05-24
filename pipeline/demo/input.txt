@@ -1,0 +1,5 @@
+This is a test file for the pipeline mini-project.
+The pipeline executor parses commands separated by '|'.
+Each pipe character creates a connection between processes.
+We use fork(), pipe(), dup2(), execvp(), and waitpid().
+The PIPELINE itself is built on top of these system calls.

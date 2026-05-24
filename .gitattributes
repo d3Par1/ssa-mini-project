@@ -1,0 +1,6 @@
+# Усі текстові файли — LF (працюють у Linux/WSL без modifications).
+* text=auto eol=lf
+
+# Бінарні файли — без перетворень.
+*.png binary
+*.jpg binary

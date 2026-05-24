@@ -1,19 +1,21 @@
-# Top-level Makefile — будує обидві частини мініпроєкту
+# Makefile для minishell (варіант 1)
+# Той же стиль, що в pipeline/Makefile.
 
-.PHONY: all clean pipeline minishell
+CC      := gcc
+CFLAGS  := -Wall -Wextra -O2 -std=c11
+TARGET  := minishell
+SRC     := minishell.c
 
-all: pipeline minishell
+.PHONY: all clean run
 
-pipeline:
-	@$(MAKE) -C pipeline
+all: $(TARGET)
 
-minishell:
-	@if [ -f minishell/Makefile ]; then \
-		$(MAKE) -C minishell; \
-	else \
-		echo "minishell/ ще не наповнено Артемом — пропускаю."; \
-	fi
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) -o $@ $<
+
+# Швидкий smoke-test: запустити оболонку з однією командою через echo
+run: $(TARGET)
+	echo "ls -la" | ./$(TARGET)
 
 clean:
-	@$(MAKE) -C pipeline clean
-	@if [ -f minishell/Makefile ]; then $(MAKE) -C minishell clean; fi
+	rm -f $(TARGET)

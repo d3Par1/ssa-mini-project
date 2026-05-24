@@ -5,6 +5,10 @@ minishell/minishell
 *.out
 *.exe
 
+# PDF generation artifacts (PDF лишається у git, HTML і скрипт — ні)
+pipeline/report.html
+pipeline/build_pdf.py
+
 # Demo runtime outputs (kept screenshots in pipeline/screenshots/)
 pipeline/demo/output_*.txt
 pipeline/demo/*.log

@@ -142,14 +142,7 @@ $ ./pipeline "ls /usr/bin | wc -l"
 Перший процес (`ls`) переспрямовує stdout у пайп, другий (`wc -l`) читає
 з нього і виводить кількість рядків. Класичний приклад з методички.
 
-**Фактичний вивід (WSL Ubuntu 24.04, gcc 13.3):**
-
-```text
-$ ./pipeline "ls /usr/bin | wc -l"
-1153
-[pid=39187] ls -> exit=0
-[pid=39188] wc -> exit=0
-```
+![Демо 1 — реальний WSL термінал](screenshots/demo_1.png)
 
 `ls /usr/bin` знаходить 1153 файли. Звіт у stderr (`[pid=...]`) показує,
 що обидва процеси завершилися з кодом 0.
@@ -163,15 +156,7 @@ $ ./pipeline "cat demo/input.txt | grep -i pipeline | wc -l"
 Три процеси, два пайпи. `grep` стає одночасно і читачем, і писачем —
 саме той випадок, коли важливе правильне закриття дескрипторів.
 
-**Фактичний вивід:**
-
-```text
-$ ./pipeline "cat demo/input.txt | grep -i pipeline | wc -l"
-3
-[pid=39192] cat -> exit=0
-[pid=39193] grep -> exit=0
-[pid=39194] wc -> exit=0
-```
+![Демо 2 — реальний WSL термінал](screenshots/demo_2.png)
 
 У `demo/input.txt` слово «pipeline» зустрічається тричі (рядки 1, 2, 5).
 `grep -i` пропускає їх до `wc -l`, який рахує — отримуємо `3`.
@@ -188,20 +173,7 @@ $ ./pipeline "ps aux | grep root | sort -k1 | head -5"
 закриває свій stdin раніше за всіх, спричиняючи `SIGPIPE` у попередніх
 ланок (якщо вони ще пишуть).
 
-**Фактичний вивід:**
-
-```text
-$ ./pipeline "ps aux | grep root | sort -k1 | head -5"
-nazar      39197  0.0  0.0   2680  1344 pts/4    S+   22:00   0:00 ./pipeline ps aux | grep root | sort -k1 | head -5
-nazar      39199  0.0  0.0   4088  1728 pts/4    S+   22:00   0:00 grep root
-root           1  0.0  0.0  22236 11904 ?        Ss   May20   0:13 /sbin/init
-root           2  0.0  0.0   3072  1728 ?        Sl   May20   0:00 /init
-root           7  0.0  0.0   3120  1728 ?        Sl   May20   0:01 plan9 --control-socket 7 --log-level 4
-[pid=39198] ps -> exit=0
-[pid=39199] grep -> exit=0
-[pid=39200] sort -> exit=0
-[pid=39201] head -> exit=0
-```
+![Демо 3 — реальний WSL термінал](screenshots/demo_3.png)
 
 Хоча `grep` шукає «root», у виводі є й рядки з користувачем `nazar` —
 це бо власні процеси `pipeline` і `grep root` теж потрапляють у `ps aux`
@@ -218,15 +190,7 @@ $ ./pipeline "cat nonexistent_file.xyz | wc -l"
 `wc -l` отримує порожній stdin (EOF одразу) і виводить `0`. Pipeline
 рапортує обидва exit-коди у stderr, повертає 0 (код останньої команди).
 
-**Фактичний вивід:**
-
-```text
-$ ./pipeline "cat nonexistent_file.xyz | wc -l"
-cat: nonexistent_file.xyz: No such file or directory
-0
-[pid=39205] cat -> exit=1
-[pid=39206] wc -> exit=0
-```
+![Демо 4 — реальний WSL термінал](screenshots/demo_4.png)
 
 `cat` пише свою помилку у `stderr` (відразу на термінал), у `stdout` (пайп)
 нічого не пише, потім виходить з кодом 1. `wc -l` бачить EOF одразу,
@@ -243,19 +207,10 @@ $ ./pipeline "ls | nosuchcommand_xyz | wc -l"
 `ls` отримує `SIGPIPE` (бо середній процес закрив read-end) і завершується.
 Pipeline видає три повідомлення з кодами/сигналами кожного процесу.
 
-**Фактичний вивід:**
+![Демо 5 — реальний WSL термінал](screenshots/demo_5.png)
 
-```text
-$ ./pipeline "ls | nosuchcommand_xyz | wc -l"
-[pid=39210] ls -> exit=0
-pipeline: nosuchcommand_xyz: No such file or directory
-0
-[pid=39211] nosuchcommand_xyz -> exit=127
-[pid=39212] wc -> exit=0
-```
-
-Рядок `pipeline: nosuchcommand_xyz: No such file or directory` — наш
-власний повідомлень з `pipeline.c:164-165`. Код 127 — це POSIX-конвенція
+Рядок `pipeline: nosuchcommand_xyz: No such file or directory` — наше
+власне повідомлення з `pipeline.c:164-165`. Код 127 — це POSIX-конвенція
 для «команда не знайдена». `ls` завершився нормально, бо вивід `ls` був
 маленький і повністю помістився у kernel-pipe-буфер до того як середній
 процес закрив свій read-end (інакше `ls` упав би з SIGPIPE).
@@ -270,15 +225,7 @@ $ ./pipeline "echo hello world | tr a-z A-Z | rev"
 використовуємо `/usr/bin/echo` (зовнішню утиліту GNU coreutils), бо
 `execvp` шукає файл у `$PATH`.
 
-**Фактичний вивід:**
-
-```text
-$ ./pipeline "echo hello world | tr a-z A-Z | rev"
-DLROW OLLEH
-[pid=39216] echo -> exit=0
-[pid=39217] tr -> exit=0
-[pid=39218] rev -> exit=0
-```
+![Демо 6 — реальний WSL термінал](screenshots/demo_6.png)
 
 Послідовність: `echo hello world` → `hello world` → `tr a-z A-Z` →
 `HELLO WORLD` → `rev` → `DLROW OLLEH`. Усі три процеси виконуються
@@ -295,18 +242,7 @@ $ ./pipeline "ls -la demo"
 просто `fork + execvp + waitpid`. Підтверджує, що алгоритм працює для
 тривіального випадку та не падає на `pipes[-1]`.
 
-**Фактичний вивід:**
-
-```text
-$ ./pipeline "ls -la demo"
-total 8
-drwxrwxrwx 1 nazar nazar 4096 May 24 22:00 .
-drwxrwxrwx 1 nazar nazar 4096 May 24 21:59 ..
--rwxrwxrwx 1 nazar nazar  282 May 24 22:00 input.txt
--rwxrwxrwx 1 nazar nazar  215 May 24 22:00 output_1.txt
--rwxrwxrwx 1 nazar nazar 2043 May 24 14:06 run_demos.sh
-[pid=39222] ls -> exit=0
-```
+![Демо 7 — реальний WSL термінал](screenshots/demo_7.png)
 
 Один процес, жодного pipe-fd. Логіка `if (i > 0)` та `if (i < ncmd - 1)`
 у `pipeline.c:147,153` коректно опускає обидва `dup2`. `close_all_pipes`
@@ -336,6 +272,22 @@ drwxrwxrwx 1 nazar nazar 4096 May 24 21:59 ..
 - Background `&` — це варіант 2 (Артем робив би це у своєму shell).
 - `SIGPIPE`-handler — стандартна реакція ядра (terminate) нам якраз підходить:
   якщо `head` закрив read-end, попередник має померти на наступному `write()`.
+
+## Інтеграція з minishell (Артем, варіант 1)
+
+Хоча pipeline і minishell — це формально окремі здачі (методичка передбачає
+індивідуальні варіанти), в одному репозиторії вони складають цілісну
+демонстрацію Unix process model. Нижче — перевірка, що бінарник minishell
+працює у тому ж WSL-середовищі: запуск кількох одиничних команд,
+обробка неіснуючих програм (exit-код 127), вихід через builtin `exit 0`.
+
+![Інтеграція з minishell — реальний WSL термінал](screenshots/joint_demo.png)
+
+Спостерігаємо: minishell коректно реалізує REPL з виведенням `[exit code: N]`
+після кожної команди, повертає 127 для неіснуючих програм (`hello`,
+`nosuchcmd`) — той самий код, що використовує мій pipeline для аналогічної
+ситуації. Це означає, що **обидві утиліти узгоджені за конвенціями**
+exit-кодів і можуть співіснувати у спільних скриптах.
 
 ## Висновок
 

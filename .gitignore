@@ -1,0 +1,21 @@
+# Build artifacts
+pipeline/pipeline
+minishell/minishell
+*.o
+*.out
+*.exe
+
+# Demo runtime outputs (kept screenshots in pipeline/screenshots/)
+pipeline/demo/output_*.txt
+pipeline/demo/*.log
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
